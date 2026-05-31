@@ -75,7 +75,7 @@ let mkGrammar nterms =
 
 let isForwardProd (NTermProd {symbols, tags, unless, action}) =
   match (symbols, unless, action) with
-  | ([PS_NTerm _], TC_True, AForward) => True
+  | ([PS_NTerm _], TC_False, AForward) => True
   | _ => False
   end
 

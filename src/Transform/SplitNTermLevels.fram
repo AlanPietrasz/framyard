@@ -80,7 +80,7 @@ let forwardProd (nt : NTerm) level nextLevel nextId =
         [PS_NTerm {var = forwardVar nt, level = nextLevel} nextId]
     , level
     , tags = tagsForLevel nextLevel nt.prods
-    , unless = TC_True
+    , unless = TC_False
     , action = AForward
     }
 
