@@ -57,8 +57,8 @@ function simple_test {
 }
 
 function run_with_flags {
-	flags="$2"
-	$1
+	local flags="$2"
+	"$1"
 }
 
 source "$1"
