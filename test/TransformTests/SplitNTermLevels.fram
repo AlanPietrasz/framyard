@@ -79,15 +79,24 @@ let isForwardProd (NTermProd {symbols, tags, unless, action}) =
   | _ => False
   end
 
-let hasTrueTag tag (prod : NTermProd) =
-  List.exists
-    (fn ((prodTag, cond) : Pair Tag (TagCond Var)) =>
-      prodTag == tag &&
-      match cond with
-      | TC_True => True
-      | _ => False
-      end)
-    prod.tags
+let sameVar (v1 : Var) (v2 : Var) =
+  v1.id == v2.id
+
+let hasForwardedTag tag (prod : NTermProd) =
+  let tagUsesVar var =
+    List.exists
+      (fn ((prodTag, cond) : Pair Tag (TagCond Var)) =>
+        prodTag == tag &&
+        match cond with
+        | TC_Tag tag' var' => tag' == tag && sameVar var var'
+        | _ => False
+        end)
+      prod.tags
+  in
+  match prod.symbols with
+  | [PS_NTerm {var} _] => tagUsesVar var
+  | _ => False
+  end
 
 let countProds (f : NTermProd ->[] Bool) (nterms : List NTerm) =
   List.foldLeft
@@ -110,8 +119,10 @@ let countNTermsWithLevel (level : Level) (nterms : List NTerm) =
 
 let hasTaggedForward tag (nterm : NTerm) =
   List.exists
-    (fn (prod : NTermProd) => isForwardProd prod && hasTrueTag tag prod)
+    (fn (prod : NTermProd) => isForwardProd prod && hasForwardedTag tag prod)
     nterm.prods
+
+let tagSourceVar = var "tag-source"
 
 let sampleGrammar () =
   let exprId = NTermId.fresh () in
@@ -129,7 +140,7 @@ let sampleGrammar () =
           (LNum 10)
           "STAR"
           LTop
-          [("multiplicative", TC_True)]
+          [("multiplicative", TC_Tag "multiplicative" tagSourceVar)]
           exprId
       , tokenProd LTop "NUMBER"
       , parenProd exprId
