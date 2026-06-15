@@ -10,25 +10,22 @@ the corresponding level and a single production that calls the next level. ##}
 
 import open Repr/RichGrammar
 import List
+import Map
 import Utils/UID
 
-let rec insertLevel (level : Level) (levels : List Level) =
-  match levels with
-  | [] => [level]
-  | level' :: levels' =>
-    if level == level' then
-      levels
-    else if level < level' then
-      level :: levels
-    else
-      level' :: insertLevel level levels'
-  end
+let (Map { module LevelMap }) = Map.make { Key = Level }
+
+type LevelSet = LevelMap.T Unit
 
 let collectLevels (prods : List NTermProd) =
-  List.foldLeft
-    (fn levels (prod : NTermProd) => insertLevel prod.level levels)
-    []
-    prods
+  let levelSet =
+    List.foldLeft
+      (fn (levelSet : LevelSet) (prod : NTermProd) =>
+        levelSet.add prod.level ())
+      LevelMap.empty
+      prods
+  in
+  levelSet.fold (fn {key} _ levels => levels + [key]) []
 
 let levelProds (level : Level) (prods : List NTermProd) =
   List.filter
