@@ -65,11 +65,19 @@ let rewriteProd (idTable : IdTable) (NTermProd {module Prod}) =
     , symbols = List.map (rewriteSymbol idTable) Prod.symbols
     }
 
+let rec dedupeTags (tags : List Tag) =
+  match tags with
+  | [] => []
+  | tag :: rest =>
+    tag :: dedupeTags (List.filter (fn tag' => not (tag' == tag)) rest)
+  end
+
 let tagsForLevel var level prods =
   levelProds level prods
   |> List.concatMap (fn (prod : NTermProd) => prod.tags)
-  |> List.map (fn ((tag, _) : Pair Tag (TagCond Var)) =>
-      (tag, TC_Tag tag var))
+  |> List.map (fn ((tag, _) : Pair Tag (TagCond Var)) => tag)
+  |> dedupeTags
+  |> List.map (fn tag => (tag, TC_Tag tag var))
 
 let forwardVar (nt : NTerm) =
   Var {id = UID.fresh (), name = None, typ = nt.valueType}

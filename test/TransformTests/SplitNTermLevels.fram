@@ -19,14 +19,17 @@ let pos =
 
 let action name = ACode {pos, code = name}
 
-let tokenProd level token =
+let tokenProdWithTags level token tags =
   NTermProd
     { symbols = [PS_Token {var = None} token]
     , level
-    , tags = []
+    , tags
     , unless = TC_True
     , action = action token
     }
+
+let tokenProd level token =
+  tokenProdWithTags level token []
 
 let var name =
   Var {id = UID.fresh (), name = Some name, typ = TToken "Expr"}
@@ -122,6 +125,29 @@ let hasTaggedForward tag (nterm : NTerm) =
     (fn (prod : NTermProd) => isForwardProd prod && hasForwardedTag tag prod)
     nterm.prods
 
+let countForwardedTag tag (prod : NTermProd) =
+  match prod.symbols with
+  | [PS_NTerm {var} _] =>
+    List.length
+      (List.filter
+        (fn ((prodTag, cond) : Pair Tag (TagCond Var)) =>
+          prodTag == tag &&
+          match cond with
+          | TC_Tag tag' var' => tag' == tag && sameVar var var'
+          | _ => False
+          end)
+        prod.tags)
+  | _ => 0
+  end
+
+let countForwardedTags tag nterms =
+  nterms
+  |> allProds
+  |> List.filter isForwardProd
+  |> List.foldLeft
+      (fn count (prod : NTermProd) => count + countForwardedTag tag prod)
+      0
+
 let tagSourceVar = var "tag-source"
 
 let sampleGrammar () =
@@ -161,6 +187,22 @@ let emptySample =
 
 let transformedEmptySample =
   SplitNTermLevels.transform emptySample
+
+let duplicateTagGrammar () =
+  let exprId = NTermId.fresh () in
+  mkGrammar
+    [ mkNTerm exprId "Expr"
+        [ tokenProd (LNum 0) "LOW"
+        , tokenProdWithTags (LNum 10) "HIGH_A" [("dup", TC_True)]
+        , tokenProdWithTags (LNum 10) "HIGH_B" [("dup", TC_True)]
+        ]
+    ]
+
+let duplicateTagSample =
+  duplicateTagGrammar ()
+
+let transformedDuplicateTagSample =
+  SplitNTermLevels.transform duplicateTagSample
 
 let _ =
 
@@ -218,4 +260,8 @@ testSuite "SplitNTermLevels" (fn _ =>
       expectEq "Empty" nt.name;
       expectEq 0 (List.length nt.prods)
     | _ => assertTrue False
-    end))
+    end);
+
+  testCase "deduplicates forwarded tags" (fn _ =>
+    let result = transformedDuplicateTagSample in
+    assertEq 1 (countForwardedTags "dup" result.nterms)))
