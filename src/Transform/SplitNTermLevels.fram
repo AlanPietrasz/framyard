@@ -43,7 +43,8 @@ let lookupLevelIds (idTable : IdTable) (id : NTermId) =
 let rec pickLevelId (level : Level) (levelIds : LevelIds) =
   match levelIds with
   | [] => impossible ()
-  | (_, id) :: [] => id
+  | (level', id) :: [] =>
+    if level <= level' then id else impossible ()
   | (level', id) :: rest =>
     if level <= level' then id else pickLevelId level rest
   end
