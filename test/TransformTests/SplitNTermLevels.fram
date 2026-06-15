@@ -168,7 +168,7 @@ let sampleGrammar () =
           LTop
           [("multiplicative", TC_Tag "multiplicative" tagSourceVar)]
           exprId
-      , tokenProd LTop "NUMBER"
+      , tokenProdWithTags LTop "NUMBER" [("atomic", TC_True)]
       , parenProd exprId
       ]
   in
@@ -268,6 +268,17 @@ testSuite "SplitNTermLevels" (fn _ =>
           (fn (nterm : NTerm) =>
             hasProdAtLevel (LNum 0) nterm &&
             hasTaggedForward "multiplicative" nterm)
+    in
+    assertEq 1 (List.length bottomLevelWithTaggedForward));
+
+  testCase "forwards tags through multiple levels" (fn _ =>
+    let result = transformedSample in
+    let bottomLevelWithTaggedForward =
+      result.nterms
+      |> List.filter
+          (fn (nterm : NTerm) =>
+            hasProdAtLevel (LNum 0) nterm &&
+            hasTaggedForward "atomic" nterm)
     in
     assertEq 1 (List.length bottomLevelWithTaggedForward));
 

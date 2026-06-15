@@ -76,9 +76,12 @@ let collectTags (tags : List Tag) =
   in
   tagSet.fold (fn {key} _ tags => key :: tags) [] >.rev
 
-let tagsForLevel var level prods =
-  levelProds level prods
-  |> List.concatMap (fn (prod : NTermProd) => prod.tags)
+let tagsForLevels var levels prods =
+  levels
+  |> List.concatMap
+      (fn level =>
+        levelProds level prods
+        |> List.concatMap (fn (prod : NTermProd) => prod.tags))
   |> List.map (fn ((tag, _) : Pair Tag (TagCond Var)) => tag)
   |> collectTags
   |> List.map (fn tag => (tag, TC_Tag tag var))
@@ -86,13 +89,13 @@ let tagsForLevel var level prods =
 let forwardVar (nt : NTerm) =
   Var {id = UID.fresh (), name = None, typ = nt.valueType}
 
-let forwardProd (nt : NTerm) level nextLevel nextId =
+let forwardProd (nt : NTerm) level nextLevel nextId tagLevels =
   let var = forwardVar nt in
   NTermProd
     { symbols =
         [PS_NTerm {var, level = nextLevel} nextId]
     , level
-    , tags = tagsForLevel var nextLevel nt.prods
+    , tags = tagsForLevels var tagLevels nt.prods
     , unless = TC_False
     , action = AForward
     }
@@ -111,7 +114,7 @@ let rec splitLevels (idTable : IdTable) (nt : NTerm) (levelIds : LevelIds) =
       match rest with
       | [] => prods
       | (nextLevel, nextId) :: _ =>
-        prods + [forwardProd nt level nextLevel nextId]
+        prods + [forwardProd nt level nextLevel nextId (List.map fst rest)]
       end
     in
     NTerm
