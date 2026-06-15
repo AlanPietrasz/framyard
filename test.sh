@@ -6,6 +6,16 @@ if [ $# -ne 1 ]; then
 	exit 1
 fi
 
+if [ ! -f "$1" ]; then
+	echo "ERROR: test suite file not found: $1"
+	exit 1
+fi
+
+if [ ! -r "$1" ]; then
+	echo "ERROR: test suite file is not readable: $1"
+	exit 1
+fi
+
 binary="${DBL:-dbl}"
 if ! command -v "$binary" > /dev/null; then
 	echo "ERROR: dbl executable not found in PATH"
