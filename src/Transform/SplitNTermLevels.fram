@@ -97,6 +97,9 @@ let forwardProd (nt : NTerm) level nextLevel nextId =
     , action = AForward
     }
 
+let splitNTermName (nt : NTerm) (id : NTermId) (level : Level) =
+  if id == nt.id then nt.name else nt.name + "@" + level.toString
+
 let rec splitLevels (idTable : IdTable) (nt : NTerm) (levelIds : LevelIds) =
   match levelIds with
   | [] => []
@@ -113,7 +116,7 @@ let rec splitLevels (idTable : IdTable) (nt : NTerm) (levelIds : LevelIds) =
     in
     NTerm
       { id
-      , name = nt.name + "@" + level.toString
+      , name = splitNTermName nt id level
       , valueType = nt.valueType
       , prods
       } :: splitLevels idTable nt rest
@@ -125,11 +128,16 @@ let splitNTerm (idTable : IdTable) (nt : NTerm) =
   | levelIds => splitLevels idTable nt levelIds
   end
 
-let freshLevelIds levels =
-  List.map (fn level => (level, NTermId.fresh ())) levels
+let freshLevelIds (nt : NTerm) levels =
+  match levels with
+  | [] => []
+  | level :: levels =>
+    (level, nt.id) ::
+      List.map (fn level => (level, NTermId.fresh ())) levels
+  end
 
 let addNTermLevelIds (idTable : IdTable) (nt : NTerm) =
-  idTable.add nt.id (freshLevelIds (collectLevels nt.prods))
+  idTable.add nt.id (freshLevelIds nt (collectLevels nt.prods))
 
 {## Split each non-terminal into multiple levels. ##}
 pub let transform (RichGrammar {module G}) : RichGrammar =

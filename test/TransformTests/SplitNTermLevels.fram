@@ -179,6 +179,12 @@ let sample = sampleGrammar ()
 let transformedSample =
   SplitNTermLevels.transform sample
 
+let sampleExprId =
+  match sample.nterms with
+  | [nt] => nt.id
+  | _ => impossible ()
+  end
+
 let emptyGrammar () =
   mkGrammar [mkNTerm (NTermId.fresh ()) "Empty" []]
 
@@ -214,6 +220,19 @@ testSuite "SplitNTermLevels" (fn _ =>
     expectEq 1 (countNTermsWithLevel (LNum 0) result.nterms);
     expectEq 1 (countNTermsWithLevel (LNum 10) result.nterms);
     expectEq 1 (countNTermsWithLevel LTop result.nterms));
+
+  testCase "keeps original id and name on the lowest level" (fn _ =>
+    let result = transformedSample in
+    let originalNTerms =
+      List.filter (fn (nt : NTerm) => nt.id == sampleExprId) result.nterms
+    in
+    assertEq 1 (List.length originalNTerms);
+    match originalNTerms with
+    | [nt] =>
+      expectEq "Expr" nt.name;
+      assertTrue (hasProdAtLevel (LNum 0) nt)
+    | _ => assertTrue False
+    end);
 
   testCase "keeps original productions only on their own levels" (fn _ =>
     let result = transformedSample in
