@@ -14,8 +14,10 @@ import Map
 import Utils/UID
 
 let (Map { module LevelMap }) = Map.make { Key = Level }
+let (Map { module TagMap }) = Map.make { Key = String }
 
 type LevelSet = LevelMap.T Unit
+type TagSet = TagMap.T Unit
 
 let collectLevels (prods : List NTermProd) =
   let levelSet =
@@ -65,18 +67,20 @@ let rewriteProd (idTable : IdTable) (NTermProd {module Prod}) =
     , symbols = List.map (rewriteSymbol idTable) Prod.symbols
     }
 
-let rec dedupeTags (tags : List Tag) =
-  match tags with
-  | [] => []
-  | tag :: rest =>
-    tag :: dedupeTags (List.filter (fn tag' => not (tag' == tag)) rest)
-  end
+let collectTags (tags : List Tag) =
+  let tagSet =
+    List.foldLeft
+      (fn (tagSet : TagSet) tag => tagSet.add tag ())
+      TagMap.empty
+      tags
+  in
+  tagSet.fold (fn {key} _ tags => key :: tags) [] >.rev
 
 let tagsForLevel var level prods =
   levelProds level prods
   |> List.concatMap (fn (prod : NTermProd) => prod.tags)
   |> List.map (fn ((tag, _) : Pair Tag (TagCond Var)) => tag)
-  |> dedupeTags
+  |> collectTags
   |> List.map (fn tag => (tag, TC_Tag tag var))
 
 let forwardVar (nt : NTerm) =
