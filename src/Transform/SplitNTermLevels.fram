@@ -106,6 +106,12 @@ let rec splitLevels (idTable : IdTable) (nt : NTerm) (levelIds : LevelIds) =
       } :: splitLevels idTable nt rest
   end
 
+let splitNTerm (idTable : IdTable) (nt : NTerm) =
+  match lookupLevelIds idTable nt.id with
+  | [] => [nt]
+  | levelIds => splitLevels idTable nt levelIds
+  end
+
 let freshLevelIds levels =
   List.map (fn level => (level, NTermId.fresh ())) levels
 
@@ -121,6 +127,5 @@ pub let transform (RichGrammar {module G}) : RichGrammar =
     { module G
     , nterms =
         G.nterms
-        |> List.concatMap
-            (fn nt => splitLevels idTable nt (lookupLevelIds idTable nt.id))
+        |> List.concatMap (splitNTerm idTable)
     }

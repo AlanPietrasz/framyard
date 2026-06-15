@@ -153,6 +153,15 @@ let sample = sampleGrammar ()
 let transformedSample =
   SplitNTermLevels.transform sample
 
+let emptyGrammar () =
+  mkGrammar [mkNTerm (NTermId.fresh ()) "Empty" []]
+
+let emptySample =
+  emptyGrammar ()
+
+let transformedEmptySample =
+  SplitNTermLevels.transform emptySample
+
 let _ =
 
 testSuite "SplitNTermLevels" (fn _ =>
@@ -199,4 +208,14 @@ testSuite "SplitNTermLevels" (fn _ =>
             hasProdAtLevel (LNum 0) nterm &&
             hasTaggedForward "multiplicative" nterm)
     in
-    assertEq 1 (List.length bottomLevelWithTaggedForward)))
+    assertEq 1 (List.length bottomLevelWithTaggedForward));
+
+  testCase "preserves non-terminals without productions" (fn _ =>
+    let result = transformedEmptySample in
+    assertEq 1 (List.length result.nterms);
+    match result.nterms with
+    | [nt] =>
+      expectEq "Empty" nt.name;
+      expectEq 0 (List.length nt.prods)
+    | _ => assertTrue False
+    end))
