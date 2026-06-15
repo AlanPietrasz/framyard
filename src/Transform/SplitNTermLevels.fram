@@ -34,6 +34,20 @@ let levelProds (level : Level) (prods : List NTermProd) =
     (fn (prod : NTermProd) => prod.level == level)
     prods
 
+type ProdsByLevel = LevelMap.T (List NTermProd)
+
+let prodsByLevel levels prods =
+  List.foldLeft
+    (fn (prodsByLevel : ProdsByLevel) level =>
+      prodsByLevel.add level (levelProds level prods))
+    LevelMap.empty
+    levels
+
+let lookupProds (level : Level) (prodsByLevel : ProdsByLevel) =
+  prodsByLevel.findErr
+    {~onError = fn _ => impossible ()}
+    level
+
 type LevelIds = List (Pair Level NTermId)
 type IdTable = NTermMap.T LevelIds
 
@@ -76,11 +90,11 @@ let collectTags (tags : List Tag) =
   in
   tagSet.fold (fn {key} _ tags => key :: tags) [] >.rev
 
-let tagsForLevels var levels prods =
+let tagsForLevels var levels prodsByLevel =
   levels
   |> List.concatMap
       (fn level =>
-        levelProds level prods
+        lookupProds level prodsByLevel
         |> List.concatMap (fn (prod : NTermProd) => prod.tags))
   |> List.map (fn ((tag, _) : Pair Tag (TagCond Var)) => tag)
   |> collectTags
@@ -89,13 +103,13 @@ let tagsForLevels var levels prods =
 let forwardVar (nt : NTerm) =
   Var {id = UID.fresh (), name = None, typ = nt.valueType}
 
-let forwardProd (nt : NTerm) level nextLevel nextId tagLevels =
+let forwardProd (nt : NTerm) level nextLevel nextId tagLevels prodsByLevel =
   let var = forwardVar nt in
   NTermProd
     { symbols =
         [PS_NTerm {var, level = nextLevel} nextId]
     , level
-    , tags = tagsForLevels var tagLevels nt.prods
+    , tags = tagsForLevels var tagLevels prodsByLevel
     , unless = TC_False
     , action = AForward
     }
@@ -103,18 +117,24 @@ let forwardProd (nt : NTerm) level nextLevel nextId tagLevels =
 let splitNTermName (nt : NTerm) (id : NTermId) (level : Level) =
   if id == nt.id then nt.name else nt.name + "@" + level.toString
 
-let rec splitLevels (idTable : IdTable) (nt : NTerm) (levelIds : LevelIds) =
+let rec splitLevels
+    (idTable : IdTable)
+    (nt : NTerm)
+    (prodsByLevel : ProdsByLevel)
+    (levelIds : LevelIds) =
   match levelIds with
   | [] => []
   | (level, id) :: rest =>
     let prods =
-      levelProds level nt.prods
+      lookupProds level prodsByLevel
       |> List.map (rewriteProd idTable)
     let prods =
       match rest with
       | [] => prods
       | (nextLevel, nextId) :: _ =>
-        prods + [forwardProd nt level nextLevel nextId (List.map fst rest)]
+        prods +
+          [forwardProd
+            nt level nextLevel nextId (List.map fst rest) prodsByLevel]
       end
     in
     NTerm
@@ -122,13 +142,15 @@ let rec splitLevels (idTable : IdTable) (nt : NTerm) (levelIds : LevelIds) =
       , name = splitNTermName nt id level
       , valueType = nt.valueType
       , prods
-      } :: splitLevels idTable nt rest
+      } :: splitLevels idTable nt prodsByLevel rest
   end
 
 let splitNTerm (idTable : IdTable) (nt : NTerm) =
   match lookupLevelIds idTable nt.id with
   | [] => [nt]
-  | levelIds => splitLevels idTable nt levelIds
+  | levelIds =>
+    let prodsByLevel = prodsByLevel (List.map fst levelIds) nt.prods in
+    splitLevels idTable nt prodsByLevel levelIds
   end
 
 let freshLevelIds (nt : NTerm) levels =
