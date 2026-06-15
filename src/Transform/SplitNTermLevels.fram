@@ -36,11 +36,26 @@ let levelProds (level : Level) (prods : List NTermProd) =
 
 type ProdsByLevel = LevelMap.T (List NTermProd)
 
-let prodsByLevel levels prods =
+let addProdToLevel (prodsByLevel : ProdsByLevel) (prod : NTermProd) =
+  let prods =
+    prodsByLevel.find prod.level >.unwrapOr []
+  in
+  prodsByLevel.add prod.level (prod :: prods)
+
+let prodsByLevel prods =
+  List.foldLeft addProdToLevel LevelMap.empty prods
+  >.map (fn {key} prods => prods.rev)
+
+let addEmptyLevel (prodsByLevel : ProdsByLevel) level =
+  if prodsByLevel.mem level then
+    prodsByLevel
+  else
+    prodsByLevel.add level []
+
+let ensureLevels levels prodsByLevel =
   List.foldLeft
-    (fn (prodsByLevel : ProdsByLevel) level =>
-      prodsByLevel.add level (levelProds level prods))
-    LevelMap.empty
+    addEmptyLevel
+    prodsByLevel
     levels
 
 let lookupProds (level : Level) (prodsByLevel : ProdsByLevel) =
@@ -149,7 +164,10 @@ let splitNTerm (idTable : IdTable) (nt : NTerm) =
   match lookupLevelIds idTable nt.id with
   | [] => [nt]
   | levelIds =>
-    let prodsByLevel = prodsByLevel (List.map fst levelIds) nt.prods in
+    let prodsByLevel =
+      prodsByLevel nt.prods
+      |> ensureLevels (List.map fst levelIds)
+    in
     splitLevels idTable nt prodsByLevel levelIds
   end
 
