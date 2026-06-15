@@ -17,22 +17,24 @@ pub data Level =
 
 {## Equality of levels. ##}
 pub method equal (l1 : Level) (l2 : Level) =
-  match (l1, l2) with
-  | (LBot, LBot) => True
-  | (LTop, LTop) => True
-  | (LNum n1, LNum n2) => n1 == n2
-  | _ => False
+  match l1, l2 with
+  | LBot,    LBot    => True
+  | LBot,    _       => False
+  | LTop,    LTop    => True
+  | LTop,    _       => False
+  | LNum n1, LNum n2 => n1 == n2
+  | LNum _,  _       => False
   end
 
 {## Strict order on levels. ##}
 pub method lt (l1 : Level) (l2 : Level) =
-  match (l1, l2) with
-  | (LBot, LBot) => False
-  | (LBot, _) => True
-  | (_, LBot) => False
-  | (LTop, _) => False
-  | (_, LTop) => True
-  | (LNum n1, LNum n2) => n1 < n2
+  match l1, l2 with
+  | LBot,    LBot    => False
+  | LBot,    _       => True
+  | _,       LBot    => False
+  | LTop,    _       => False
+  | _,       LTop    => True
+  | LNum n1, LNum n2 => n1 < n2
   end
 
 {## Non-strict order on levels. ##}
