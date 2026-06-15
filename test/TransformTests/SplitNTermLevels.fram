@@ -24,7 +24,7 @@ let tokenProdWithTags level token tags =
     { symbols = [PS_Token {var = None} token]
     , level
     , tags
-    , unless = TC_True
+    , unless = TC_False
     , action = action token
     }
 
@@ -46,7 +46,7 @@ let infixProdWithTags level leftLevel token rightLevel tags exprId =
         ]
     , level
     , tags
-    , unless = TC_True
+    , unless = TC_False
     , action = action token
     }
 
@@ -59,7 +59,7 @@ let parenProd exprId =
         ]
     , level = LTop
     , tags = []
-    , unless = TC_True
+    , unless = TC_False
     , action = action "paren"
     }
 
