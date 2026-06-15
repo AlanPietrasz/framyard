@@ -46,18 +46,6 @@ let prodsByLevel prods =
   List.foldLeft addProdToLevel LevelMap.empty prods
   >.map (fn {key} prods => prods.rev)
 
-let addEmptyLevel (prodsByLevel : ProdsByLevel) level =
-  if prodsByLevel.mem level then
-    prodsByLevel
-  else
-    prodsByLevel.add level []
-
-let ensureLevels levels prodsByLevel =
-  List.foldLeft
-    addEmptyLevel
-    prodsByLevel
-    levels
-
 let lookupProds (level : Level) (prodsByLevel : ProdsByLevel) =
   prodsByLevel.findErr
     {~onError = fn _ => impossible ()}
@@ -164,10 +152,7 @@ let splitNTerm (idTable : IdTable) (nt : NTerm) =
   match lookupLevelIds idTable nt.id with
   | [] => [nt]
   | levelIds =>
-    let prodsByLevel =
-      prodsByLevel nt.prods
-      |> ensureLevels (List.map fst levelIds)
-    in
+    let prodsByLevel = prodsByLevel nt.prods in
     splitLevels idTable nt prodsByLevel levelIds
   end
 
