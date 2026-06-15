@@ -25,7 +25,7 @@ let collectLevels (prods : List NTermProd) =
       LevelMap.empty
       prods
   in
-  levelSet.fold (fn {key} _ levels => levels + [key]) []
+  levelSet.fold (fn {key} _ levels => key :: levels) [] >.rev
 
 let levelProds (level : Level) (prods : List NTermProd) =
   List.filter
