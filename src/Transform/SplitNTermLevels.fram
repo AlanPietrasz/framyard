@@ -52,24 +52,36 @@ let lookupProds (level : Level) (prodsByLevel : ProdsByLevel) =
     level
 
 type LevelIds = List (Pair Level NTermId)
-type IdTable = NTermMap.T LevelIds
+type NTermLevelIds = Pair String LevelIds
+type IdTable = NTermMap.T NTermLevelIds
 
-let lookupLevelIds (idTable : IdTable) (id : NTermId) =
+parameter ~onError
+
+let lookupNTermLevelIds (idTable : IdTable) (id : NTermId) =
   idTable.findErr
     {~onError = fn _ => impossible ()}
     id
 
-let rec pickLevelId (level : Level) (levelIds : LevelIds) =
+let lookupLevelIds idTable id =
+  snd (lookupNTermLevelIds idTable id)
+
+let invalidLevelError (ntName : String) (level : Level) =
+  "Requested level " + level.toString +
+  " for non-terminal " + ntName +
+  " is stronger than every production level"
+
+let rec pickLevelId ntName (level : Level) (levelIds : LevelIds) =
   match levelIds with
   | [] => impossible ()
   | (level', id) :: [] =>
-    if level <= level' then id else impossible ()
+    if level <= level' then id else ~onError (invalidLevelError ntName level)
   | (level', id) :: rest =>
-    if level <= level' then id else pickLevelId level rest
+    if level <= level' then id else pickLevelId ntName level rest
   end
 
-let lookupNTermId (idTable : IdTable) (id : NTermId) (level : Level) =
-  pickLevelId level (lookupLevelIds idTable id)
+let lookupNTermId (idTable : IdTable) id level =
+  let (ntName, levelIds) = lookupNTermLevelIds idTable id in
+  pickLevelId ntName level levelIds
 
 let rewriteSymbol (idTable : IdTable) sym =
   match sym with
@@ -165,10 +177,9 @@ let freshLevelIds (nt : NTerm) levels =
   end
 
 let addNTermLevelIds (idTable : IdTable) (nt : NTerm) =
-  idTable.add nt.id (freshLevelIds nt (collectLevels nt.prods))
+  idTable.add nt.id (nt.name, freshLevelIds nt (collectLevels nt.prods))
 
-{## Split each non-terminal into multiple levels. ##}
-pub let transform (RichGrammar {module G}) : RichGrammar =
+pub let transformErr (RichGrammar {module G}) : RichGrammar =
   let idTable =
     List.foldLeft addNTermLevelIds NTermMap.empty G.nterms
   in
@@ -178,3 +189,9 @@ pub let transform (RichGrammar {module G}) : RichGrammar =
         G.nterms
         |> List.concatMap (splitNTerm idTable)
     }
+
+{## Split each non-terminal into multiple levels. ##}
+pub let transform g : RichGrammar =
+  transformErr
+    {~onError = fn msg => runtimeError ("SplitNTermLevels: " + msg)}
+    g

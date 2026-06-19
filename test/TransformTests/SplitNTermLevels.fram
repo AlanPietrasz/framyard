@@ -8,6 +8,9 @@ import open Repr/RichGrammar
 import Transform/SplitNTermLevels
 import Utils/UID
 
+let ~onError _ =
+  runtimeError "Unhandled ~onError in SplitNTermLevels test module!"
+
 let pos =
   Position 
     { fname = "<test>"
@@ -210,6 +213,30 @@ let duplicateTagSample =
 let transformedDuplicateTagSample =
   SplitNTermLevels.transform duplicateTagSample
 
+let invalidLevelGrammar () =
+  let exprId = NTermId.fresh () in
+  mkGrammar
+    [ mkNTerm exprId "Expr"
+        [ NTermProd
+            { symbols = [exprSym exprId (LNum 21) "bad"]
+            , level = LNum 20
+            , tags = []
+            , unless = TC_False
+            , action = action "bad-level"
+            }
+        ]
+    ]
+
+let invalidLevelSample =
+  invalidLevelGrammar ()
+
+let invalidLevelReportsError =
+  handle
+    ~onError = effect _ / _ => True
+    return _ => False
+  in
+  SplitNTermLevels.transformErr invalidLevelSample
+
 let _ =
 
 testSuite "SplitNTermLevels" (fn _ =>
@@ -294,4 +321,7 @@ testSuite "SplitNTermLevels" (fn _ =>
 
   testCase "deduplicates forwarded tags" (fn _ =>
     let result = transformedDuplicateTagSample in
-    assertEq 1 (countForwardedTags "dup" result.nterms)))
+    assertEq 1 (countForwardedTags "dup" result.nterms));
+
+  testCase "reports references above the strongest production level" (fn _ =>
+    assertTrue invalidLevelReportsError))
