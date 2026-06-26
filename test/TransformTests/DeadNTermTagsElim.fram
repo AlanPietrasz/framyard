@@ -1,0 +1,215 @@
+{# This file is part of FramYard, released under MIT license.
+   See LICENSE for details.
+ #}
+
+import open Testing
+import /List
+import open Repr/RichGrammar
+import Transform/DeadNTermTagsElim
+import Utils/UID
+
+let pos =
+  Position
+    { fname = "<test>"
+    , line = 1
+    , cnum = 0
+    , bol = 0
+    , length = 0
+    }
+
+let action name = ACode {pos, code = name}
+
+let var name typ =
+  Var {id = UID.fresh (), name = Some name, typ}
+
+let tokenSym token =
+  PS_Token {var = None} token
+
+let tokenSymVar token v =
+  PS_Token {var = Some v} token
+
+let ntermSym id v =
+  PS_NTerm {var = v, level = LBot} id
+
+let prod symbols tags unless actionName =
+  NTermProd
+    { symbols
+    , level = LBot
+    , tags
+    , unless
+    , action = action actionName
+    }
+
+let tokenProd token tags =
+  prod [tokenSym token] tags TC_False token
+
+let mkNTerm id name prods =
+  NTerm {id, name, valueType = TToken name, prods}
+
+let mkGrammar nterms =
+  RichGrammar
+    { tokens = []
+    , datatypes = []
+    , typeDefs = []
+    , nterms
+    , treeSymbols = []
+    , preambleCode = []
+    }
+
+let allProds (g : RichGrammar) =
+  List.concatMap (fn (NTerm {prods}) => prods) g.nterms
+
+let prodHasTag tag (prod : NTermProd) =
+  List.exists
+    (fn ((prodTag, _) : Pair Tag (TagCond Var)) => prodTag == tag)
+    prod.tags
+
+let countTag tag (g : RichGrammar) =
+  g
+  |> allProds
+  |> List.filter (prodHasTag tag)
+  |> List.length
+
+let aliveTagGrammar () =
+  let nId = NTermId.fresh () in
+  mkGrammar
+    [ mkNTerm nId "N"
+        [ tokenProd "TOKEN" [("alive", TC_True)] ]
+    ]
+
+let impossibleArgTagGrammar () =
+  let argId = NTermId.fresh () in
+  let nId = NTermId.fresh () in
+  let x = var "x" (TToken "Arg") in
+  mkGrammar
+    [ mkNTerm argId "Arg"
+        [ tokenProd "ARG" [] ]
+    , mkNTerm nId "N"
+        [ prod
+            [ntermSym argId x]
+            [("derived", TC_Tag "missing" x)]
+            TC_False
+            "derived"
+        ]
+    ]
+
+let fixedPointGrammar () =
+  let baseId = NTermId.fresh () in
+  let midId = NTermId.fresh () in
+  let topId = NTermId.fresh () in
+  let baseVar = var "base" (TToken "Base") in
+  let midVar = var "mid" (TToken "Mid") in
+  mkGrammar
+    [ mkNTerm baseId "Base"
+        [ tokenProd "BASE" [("base", TC_True)] ]
+    , mkNTerm midId "Mid"
+        [ prod
+            [ntermSym baseId baseVar]
+            [("mid", TC_Tag "base" baseVar)]
+            TC_False
+            "mid"
+        ]
+    , mkNTerm topId "Top"
+        [ prod
+            [ntermSym midId midVar]
+            [("top", TC_Tag "mid" midVar)]
+            TC_False
+            "top"
+        ]
+    ]
+
+let unlessKillsTagGrammar () =
+  let baseId = NTermId.fresh () in
+  let nId = NTermId.fresh () in
+  let x = var "x" (TToken "Base") in
+  mkGrammar
+    [ mkNTerm baseId "Base"
+        [ tokenProd "BASE" [("effect", TC_True)] ]
+    , mkNTerm nId "N"
+        [ prod
+            [ntermSym baseId x]
+            [("effect", TC_Tag "effect" x)]
+            (TC_Tag "effect" x)
+            "blocked"
+        ]
+    ]
+
+let splitLevelsDeadTagGrammar () =
+  let exprId = NTermId.fresh () in
+  let expr10Id = NTermId.fresh () in
+  let exprTopId = NTermId.fresh () in
+  let semiL = var "semi-l" (TToken "Expr") in
+  let semiR = var "semi-r" (TToken "Expr") in
+  let fwd = var "fwd" (TToken "Expr") in
+  let plusL = var "plus-l" (TToken "Expr") in
+  let plusR = var "plus-r" (TToken "Expr") in
+  mkGrammar
+    [ mkNTerm exprId "Expr"
+        [ prod
+            [ ntermSym expr10Id semiL
+            , tokenSym "SEMI"
+            , ntermSym exprId semiR
+            ]
+            []
+            TC_False
+            "semi"
+        , prod
+            [ntermSym expr10Id fwd]
+            [("boxed", TC_Tag "boxed" fwd)]
+            TC_False
+            "forward"
+        ]
+    , mkNTerm expr10Id "Expr@10"
+        [ prod
+            [ ntermSym expr10Id plusL
+            , tokenSym "PLUS"
+            , ntermSym exprTopId plusR
+            ]
+            [("boxed", TC_Tag "boxed" plusR)]
+            TC_False
+            "plus"
+        , prod
+            [ntermSym exprTopId (var "top" (TToken "Expr"))]
+            []
+            TC_False
+            "top-forward"
+        ]
+    , mkNTerm exprTopId "Expr@top"
+        [ tokenProd "INT" [] ]
+    ]
+
+let aliveTagResult =
+  DeadNTermTagsElim.transform (aliveTagGrammar ())
+
+let impossibleArgTagResult =
+  DeadNTermTagsElim.transform (impossibleArgTagGrammar ())
+
+let fixedPointResult =
+  DeadNTermTagsElim.transform (fixedPointGrammar ())
+
+let unlessKillsTagResult =
+  DeadNTermTagsElim.transform (unlessKillsTagGrammar ())
+
+let splitLevelsDeadTagResult =
+  DeadNTermTagsElim.transform (splitLevelsDeadTagGrammar ())
+
+let _ =
+
+testSuite "DeadNTermTagsElim" (fn _ =>
+
+  testCase "keeps unconditional live tags" (fn _ =>
+    assertEq 1 (countTag "alive" aliveTagResult));
+
+  testCase "removes tags conditioned on impossible argument tags" (fn _ =>
+    assertEq 0 (countTag "derived" impossibleArgTagResult));
+
+  testCase "keeps tags discovered through a fixed point" (fn _ =>
+    expectEq 1 (countTag "base" fixedPointResult);
+    expectEq 1 (countTag "mid" fixedPointResult);
+    assertEq 1 (countTag "top" fixedPointResult));
+
+  testCase "removes tags disabled by unless" (fn _ =>
+    assertEq 1 (countTag "effect" unlessKillsTagResult));
+
+  testCase "removes user and technical dead tags after split levels" (fn _ =>
+    assertEq 0 (countTag "boxed" splitLevelsDeadTagResult)))
