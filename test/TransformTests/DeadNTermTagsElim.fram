@@ -134,6 +134,39 @@ let unlessKillsTagGrammar () =
         ]
     ]
 
+let manyTagsGrammar () =
+  let leftId = NTermId.fresh () in
+  let rightId = NTermId.fresh () in
+  let nId = NTermId.fresh () in
+  let left = var "left" (TToken "Left") in
+  let right = var "right" (TToken "Right") in
+  mkGrammar
+    [ mkNTerm leftId "Left"
+        [ tokenProd "LEFT" [("a", TC_True), ("b", TC_True)] ]
+    , mkNTerm rightId "Right"
+        [ tokenProd "RIGHT" [("c", TC_True)] ]
+    , mkNTerm nId "N"
+        [ prod
+            [ ntermSym leftId left
+            , ntermSym rightId right
+            ]
+            [ ( "all"
+              , TC_And
+                  (TC_Tag "a" left)
+                  (TC_And (TC_Tag "b" left) (TC_Tag "c" right))
+              )
+            , ( "either"
+              , TC_Or (TC_Tag "missing" left) (TC_Tag "c" right)
+              )
+            , ( "dead"
+              , TC_And (TC_Tag "missing" left) (TC_Tag "c" right)
+              )
+            ]
+            TC_False
+            "many"
+        ]
+    ]
+
 let splitLevelsDeadTagGrammar () =
   let exprId = NTermId.fresh () in
   let expr10Id = NTermId.fresh () in
@@ -190,6 +223,9 @@ let fixedPointResult =
 let unlessKillsTagResult =
   DeadNTermTagsElim.transform (unlessKillsTagGrammar ())
 
+let manyTagsResult =
+  DeadNTermTagsElim.transform (manyTagsGrammar ())
+
 let splitLevelsDeadTagResult =
   DeadNTermTagsElim.transform (splitLevelsDeadTagGrammar ())
 
@@ -210,6 +246,14 @@ testSuite "DeadNTermTagsElim" (fn _ =>
 
   testCase "removes tags disabled by unless" (fn _ =>
     assertEq 1 (countTag "effect" unlessKillsTagResult));
+
+  testCase "handles several tags in one production" (fn _ =>
+    expectEq 1 (countTag "a" manyTagsResult);
+    expectEq 1 (countTag "b" manyTagsResult);
+    expectEq 1 (countTag "c" manyTagsResult);
+    expectEq 1 (countTag "all" manyTagsResult);
+    expectEq 1 (countTag "either" manyTagsResult);
+    assertEq 0 (countTag "dead" manyTagsResult));
 
   testCase "removes user and technical dead tags after split levels" (fn _ =>
     assertEq 0 (countTag "boxed" splitLevelsDeadTagResult)))
