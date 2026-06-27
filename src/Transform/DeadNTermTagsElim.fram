@@ -23,6 +23,8 @@ type VarEnv = UIDMap.T NTermId
 type Atom = Pair Tag UID
 type Valuation = List (Pair Atom Bool)
 
+{# This pass assumes a valid RichGrammar: TC_Tag variables must be bound by
+PS_NTerm symbols, not by tokens. Missing bindings are invariant violations. #}
 let mayTagsOf (mayTags : MayTags) (id : NTermId) =
   mayTags.findErr
     { ~onError = fn _ => impossible () }
